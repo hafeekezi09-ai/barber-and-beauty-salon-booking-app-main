@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "1093129499249",
+    "project_id": "salon-app-b3a76",
+    "storage_bucket": "salon-app-b3a76.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1093129499249:android:8988dde8f9f906867b21d0",
+        "android_client_info": {
+          "package_name": "com.example.barber_and_beauty_salon_booking_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBwoFQ1mxcBVJ2NZ3Sb_rRd_m0nJCPIfOU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1093129499249:android:ef1d9fe141b720d17b21d0",
+        "android_client_info": {
+          "package_name": "com.example.salone_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBwoFQ1mxcBVJ2NZ3Sb_rRd_m0nJCPIfOU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
