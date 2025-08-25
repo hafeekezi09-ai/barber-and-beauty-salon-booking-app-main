@@ -11,39 +11,63 @@ class SalonDetailsPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(salon.name)),
       body: SingleChildScrollView(
-        // <-- add parentheses here
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Image.asset(
-              salon.imageUrl,
-              width: double.infinity,
-              height: 200,
-              fit: BoxFit.cover,
+            // Image: fits width, no cropping
+            Container(
+              width: 500,
+              height: 500, // adjust height as needed
+              child: FittedBox(
+                fit: BoxFit.contain, // prevents cropping
+                child: Image.asset('assets/images/posture.jpg'),
+              ),
             ),
+
             const SizedBox(height: 16),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Salon Name
                   Text(
                     salon.name,
                     style: const TextStyle(
-                      fontSize: 20,
+                      fontSize: 22,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  Text(salon.type),
-                  Text("Location: ${salon.location}"),
-                  Text("Contact: ${salon.contact}"),
+                  const SizedBox(height: 4),
+
+                  // Salon Type
+                  Text(
+                    salon.type,
+                    style: const TextStyle(fontSize: 16, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Location
+                  Text(
+                    "Location: ${salon.location}",
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Contact
+                  Text(
+                    "Contact: ${salon.contact}",
+                    style: const TextStyle(fontSize: 16),
+                  ),
                   const SizedBox(height: 8),
+
+                  // Rating stars
                   Row(
                     children: List.generate(5, (i) {
                       if (i < salon.rating.round()) {
                         return const Icon(
                           Icons.star,
-                          color: Colors.orange,
+                          color: Color.fromARGB(255, 39, 165, 100),
                           size: 20,
                         );
                       } else {
@@ -52,6 +76,8 @@ class SalonDetailsPage extends StatelessWidget {
                     }),
                   ),
                   const SizedBox(height: 16),
+
+                  // Services & Stylists
                   const Text(
                     "Services & Stylists:",
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -59,6 +85,7 @@ class SalonDetailsPage extends StatelessWidget {
                   const SizedBox(height: 8),
                   const Text(
                     "• Haircut\n• Massage\n• Hairstyle\n• Facial\n• Manicure",
+                    style: TextStyle(fontSize: 16),
                   ),
                 ],
               ),

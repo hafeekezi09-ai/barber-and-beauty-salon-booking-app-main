@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ServiceManagementScreen extends StatefulWidget {
-  const ServiceManagementScreen({super.key});
+  const ServiceManagementScreen({Key? key}) : super(key: key);
 
   @override
   State<ServiceManagementScreen> createState() =>
@@ -14,11 +15,57 @@ class _ServiceManagementScreenState extends State<ServiceManagementScreen> {
     'services',
   );
 
-  void _openServiceForm({DocumentSnapshot? document}) {
-    final TextEditingController nameController = TextEditingController(
-      text: document?['name'] ?? '',
-    );
-    final TextEditingController priceController = TextEditingController(
+  String? userRole;
+  bool loadingRole = true;
+
+  @override
+  void initState() {
+    super.initState();
+
+    print("📍 ServiceManagementScreen loaded"); // Debug
+
+    FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (user != null) {
+        _fetchUserRole(user.uid);
+      } else {
+        setState(() {
+          userRole = null;
+          loadingRole = false;
+        });
+      }
+    });
+  }
+
+  Future<void> _fetchUserRole(String uid) async {
+    try {
+      final doc =
+          await FirebaseFirestore.instance.collection('admins').doc(uid).get();
+      if (doc.exists) {
+        final role = doc.data()?['role']?.toString().toLowerCase();
+        print("✅ Fetched role: $role"); // Debug
+        setState(() {
+          userRole = role;
+          loadingRole = false;
+        });
+      } else {
+        print("❌ No admin doc found for $uid"); // Debug
+        setState(() {
+          userRole = null;
+          loadingRole = false;
+        });
+      }
+    } catch (e) {
+      print("❌ Error fetching role: $e"); // Debug
+      setState(() {
+        userRole = null;
+        loadingRole = false;
+      });
+    }
+  }
+
+  void openServiceForm({DocumentSnapshot? document}) {
+    final nameController = TextEditingController(text: document?['name'] ?? '');
+    final priceController = TextEditingController(
       text: document?['price']?.toString() ?? '',
     );
 
@@ -63,20 +110,17 @@ class _ServiceManagementScreenState extends State<ServiceManagementScreen> {
 
                   try {
                     if (document == null) {
-                      // Add new service
                       await services.add({
                         'name': name,
                         'price': price,
                         'createdAt': Timestamp.now(),
                       });
                     } else {
-                      // Update existing service
                       await services.doc(document.id).update({
                         'name': name,
                         'price': price,
                       });
                     }
-
                     Navigator.pop(context);
                   } catch (e) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -103,23 +147,30 @@ class _ServiceManagementScreenState extends State<ServiceManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (loadingRole) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    // ✅ TEMPORARY FOR DEBUGGING — FORCE TRUE
+    // final canEdit = userRole == 'super_admin';
+    final canEdit = true;
+
+    print("🔍 userRole = $userRole");
+    print("🛠️  canEdit = $canEdit");
+
     return Scaffold(
       appBar: AppBar(title: const Text("Service Management")),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _openServiceForm(),
-        child: const Icon(Icons.add),
-      ),
       body: StreamBuilder<QuerySnapshot>(
         stream: services.orderBy('createdAt', descending: true).snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return const Center(child: Text('Something went wrong.'));
           }
-          if (snapshot.connectionState == ConnectionState.waiting)
+          if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
+          }
 
           final serviceList = snapshot.data!.docs;
-
           if (serviceList.isEmpty) {
             return const Center(child: Text('No services found.'));
           }
@@ -130,25 +181,37 @@ class _ServiceManagementScreenState extends State<ServiceManagementScreen> {
               final doc = serviceList[index];
               return ListTile(
                 title: Text(doc['name']),
-                subtitle: Text('Price: \$${doc['price']}'),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit, color: Colors.blue),
-                      onPressed: () => _openServiceForm(document: doc),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _deleteService(doc.id),
-                    ),
-                  ],
-                ),
+                subtitle: Text('Price: ₹${doc['price']}'),
+                trailing:
+                    canEdit
+                        ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit, color: Colors.blue),
+                              onPressed: () => openServiceForm(document: doc),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () => _deleteService(doc.id),
+                            ),
+                          ],
+                        )
+                        // ignore: dead_code
+                        : null,
               );
             },
           );
         },
       ),
+      floatingActionButton:
+          canEdit
+              ? FloatingActionButton(
+                onPressed: () => openServiceForm(),
+                child: const Icon(Icons.add),
+              )
+              // ignore: dead_code
+              : null,
     );
   }
 }

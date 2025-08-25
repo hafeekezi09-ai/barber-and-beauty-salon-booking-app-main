@@ -23,7 +23,6 @@ class _ProfileTabState extends State<ProfileTab> {
     _loadProfile();
   }
 
-  // Load saved profile from SharedPreferences
   Future<void> _loadProfile() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -40,56 +39,91 @@ class _ProfileTabState extends State<ProfileTab> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
+    return SafeArea(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const SizedBox(height: 30),
-          CircleAvatar(
-            radius: 50,
-            backgroundImage:
-                _imageFile != null
-                    ? FileImage(_imageFile!)
-                    : const AssetImage('assets/images/profile.jpg')
-                        as ImageProvider,
-          ),
-          const SizedBox(height: 20),
-          Text(
-            name,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-          ),
-          const SizedBox(height: 5),
-          Text(email, style: const TextStyle(fontSize: 14, color: Colors.grey)),
-          const SizedBox(height: 5),
-          Text(
-            mobileNumber,
-            style: const TextStyle(fontSize: 14, color: Colors.grey),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: () async {
-              final updated = await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const EditProfileScreen()),
-              );
+          // 🔙 Back button row
+          if (Navigator.canPop(context))
+            Align(
+              alignment: Alignment.centerLeft,
+              child: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
 
-              if (updated == true) {
-                _loadProfile();
-              }
-            },
-            child: const Text("Edit Profile"),
-          ),
-          const SizedBox(height: 10),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const AppointmentBookingScreen(),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 10),
+                    CircleAvatar(
+                      radius: 50,
+                      backgroundImage:
+                          _imageFile != null
+                              ? FileImage(_imageFile!)
+                              : const AssetImage(
+                                    'assets/images/profile-image.jpg',
+                                  )
+                                  as ImageProvider,
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      email,
+                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      mobileNumber,
+                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 30),
+
+                    // ✏️ Edit Profile Button
+                    ElevatedButton(
+                      onPressed: () async {
+                        final updated = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const EditProfileScreen(),
+                          ),
+                        );
+
+                        if (updated == true) {
+                          _loadProfile();
+                        }
+                      },
+                      child: const Text("Edit Profile"),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    // 📅 Book Appointment Button
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const AppointmentBookingScreen(),
+                          ),
+                        );
+                      },
+                      child: const Text("Book Appointment"),
+                    ),
+                  ],
                 ),
-              );
-            },
-            child: const Text("Book Appointment"),
+              ),
+            ),
           ),
         ],
       ),

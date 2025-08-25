@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:table_calendar/table_calendar.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 
 class AppointmentCalendarScreen extends StatefulWidget {
   const AppointmentCalendarScreen({super.key});
@@ -14,181 +14,309 @@ class AppointmentCalendarScreen extends StatefulWidget {
 class _AppointmentCalendarScreenState extends State<AppointmentCalendarScreen> {
   final CollectionReference appointments = FirebaseFirestore.instance
       .collection('appointments');
-  final FlutterSecureStorage storage = const FlutterSecureStorage();
 
-  CalendarFormat _calendarFormat = CalendarFormat.month;
-  DateTime _focusedDay = DateTime.now();
-  DateTime? _selectedDay;
-  String? userRole;
-  String? userEmail;
+  String userRole = '';
+  String? uid;
 
   @override
   void initState() {
     super.initState();
-    _loadUserRole();
+    _getUserRole();
   }
 
-  Future<void> _loadUserRole() async {
-    final role = await storage.read(key: 'role');
-    final email = await storage.read(key: 'email');
-    setState(() {
-      userRole = role;
-      userEmail = email;
-    });
+  Future<void> _getUserRole() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      uid = user.uid;
+      final doc =
+          await FirebaseFirestore.instance.collection('admins').doc(uid).get();
+      setState(() {
+        userRole = doc.exists ? doc['role'] ?? '' : 'user';
+      });
+    }
   }
 
   Stream<QuerySnapshot> _getAppointmentsStream() {
+    Query baseQuery = appointments.orderBy('dateTime');
     if (userRole == 'super_admin' || userRole == 'SalonManager') {
-      return appointments.orderBy('createdAt', descending: true).snapshots();
+      return baseQuery.snapshots();
     } else {
-      return appointments
-          .where('userEmail', isEqualTo: userEmail)
-          .orderBy('createdAt', descending: true)
-          .snapshots();
+      return baseQuery.where('uid', isEqualTo: uid).snapshots();
     }
   }
 
-  Map<DateTime, List> _groupAppointmentsByDay(
-    List<QueryDocumentSnapshot> docs,
-  ) {
-    Map<DateTime, List> events = {};
-    for (var doc in docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      if (data.containsKey('date') && data['date'] is Timestamp) {
-        final date = (data['date'] as Timestamp).toDate();
-        final day = DateTime(date.year, date.month, date.day);
-        events.putIfAbsent(day, () => []);
-        events[day]!.add(doc);
-      }
-    }
-    return events;
-  }
-
-  Future<void> _addAppointment() async {
-    DateTime? selectedDate = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime(2030),
+  void _openAppointmentDialog({DocumentSnapshot? doc}) {
+    final TextEditingController customerController = TextEditingController(
+      text: doc != null ? doc['customer'] ?? '' : '',
+    );
+    final TextEditingController serviceController = TextEditingController(
+      text: doc != null ? doc['service'] ?? '' : '',
+    );
+    final TextEditingController stylistController = TextEditingController(
+      text: doc != null ? doc['stylist'] ?? '' : '',
     );
 
-    if (selectedDate == null) return;
-
-    final TextEditingController customerController = TextEditingController();
-    final TextEditingController serviceController = TextEditingController();
+    DateTime? selectedDateTime =
+        doc != null ? (doc['dateTime'] as Timestamp).toDate() : null;
 
     showDialog(
       context: context,
       builder:
-          (_) => AlertDialog(
-            title: const Text("Book Appointment"),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: customerController,
-                  decoration: const InputDecoration(labelText: 'Customer Name'),
-                ),
-                TextField(
-                  controller: serviceController,
-                  decoration: const InputDecoration(labelText: 'Service'),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Cancel"),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  final customer = customerController.text.trim();
-                  final service = serviceController.text.trim();
-                  if (customer.isEmpty || service.isEmpty) return;
+          (_) => StatefulBuilder(
+            builder:
+                (context, setStateDialog) => AlertDialog(
+                  title: Text(
+                    doc == null ? 'Add Appointment' : 'Edit Appointment',
+                  ),
+                  content: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        TextField(
+                          controller: customerController,
+                          decoration: const InputDecoration(
+                            labelText: 'Customer',
+                          ),
+                        ),
+                        TextField(
+                          controller: serviceController,
+                          decoration: const InputDecoration(
+                            labelText: 'Service',
+                          ),
+                        ),
+                        TextField(
+                          controller: stylistController,
+                          decoration: const InputDecoration(
+                            labelText: 'Stylist',
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                selectedDateTime != null
+                                    ? DateFormat(
+                                      'dd MMM yyyy, hh:mm a',
+                                    ).format(selectedDateTime!)
+                                    : 'Select Date & Time',
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.calendar_today),
+                              onPressed: () async {
+                                final pickedDate = await showDatePicker(
+                                  context: context,
+                                  initialDate:
+                                      selectedDateTime ?? DateTime.now(),
+                                  firstDate: DateTime.now(),
+                                  lastDate: DateTime.now().add(
+                                    const Duration(days: 365),
+                                  ),
+                                );
+                                if (pickedDate != null) {
+                                  final pickedTime = await showTimePicker(
+                                    context: context,
+                                    initialTime: TimeOfDay.now(),
+                                  );
+                                  if (pickedTime != null) {
+                                    setStateDialog(() {
+                                      selectedDateTime = DateTime(
+                                        pickedDate.year,
+                                        pickedDate.month,
+                                        pickedDate.day,
+                                        pickedTime.hour,
+                                        pickedTime.minute,
+                                      );
+                                    });
+                                  }
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () async {
+                        final customer = customerController.text.trim();
+                        final service = serviceController.text.trim();
+                        final stylist = stylistController.text.trim();
 
-                  await appointments.add({
-                    'customerName': customer,
-                    'service': service,
-                    'date': Timestamp.fromDate(selectedDate),
-                    'userEmail': userEmail,
-                    'createdAt': Timestamp.now(),
-                  });
+                        if (customer.isEmpty ||
+                            service.isEmpty ||
+                            stylist.isEmpty ||
+                            selectedDateTime == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Please fill all fields'),
+                            ),
+                          );
+                          return;
+                        }
 
-                  Navigator.pop(context);
-                },
-                child: const Text("Add"),
-              ),
-            ],
+                        try {
+                          if (doc == null) {
+                            await appointments.add({
+                              'customer': customer,
+                              'service': service,
+                              'stylist': stylist,
+                              'status': 'Pending',
+                              'dateTime': Timestamp.fromDate(selectedDateTime!),
+                              'createdAt': Timestamp.now(),
+                              'uid': uid,
+                            });
+                          } else {
+                            await appointments.doc(doc.id).update({
+                              'customer': customer,
+                              'service': service,
+                              'stylist': stylist,
+                              'dateTime': Timestamp.fromDate(selectedDateTime!),
+                            });
+                          }
+                          Navigator.pop(context);
+                        } catch (e) {
+                          ScaffoldMessenger.of(
+                            context,
+                          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                        }
+                      },
+                      child: Text(doc == null ? 'Add' : 'Update'),
+                    ),
+                  ],
+                ),
           ),
     );
   }
 
+  Future<void> _updateStatus(String appointmentId, String newStatus) async {
+    await appointments.doc(appointmentId).update({'status': newStatus});
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Status updated')));
+  }
+
+  Future<void> _deleteAppointment(String id) async {
+    await appointments.doc(id).delete();
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Appointment deleted')));
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (uid == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Appointments Calendar"),
-        actions: [
-          IconButton(icon: const Icon(Icons.add), onPressed: _addAppointment),
-        ],
+      appBar: AppBar(title: const Text("All Appointments")),
+      body: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: StreamBuilder<QuerySnapshot>(
+          stream: _getAppointmentsStream(),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return const Center(child: Text('Error loading appointments'));
+            }
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final docs = snapshot.data!.docs;
+
+            if (docs.isEmpty) {
+              return const Center(child: Text('No appointments available.'));
+            }
+
+            return ListView.builder(
+              itemCount: docs.length,
+              itemBuilder: (context, index) {
+                final doc = docs[index];
+                final data = doc.data() as Map<String, dynamic>;
+                final customer = data['customer'] ?? '';
+                final service = data['service'] ?? '';
+                final stylist = data['stylist'] ?? '';
+                final status = data['status'] ?? 'Pending';
+                final dateTime = (data['dateTime'] as Timestamp).toDate();
+
+                return Card(
+                  margin: const EdgeInsets.symmetric(vertical: 6),
+                  child: ListTile(
+                    title: Text('$customer • $service'),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Stylist: $stylist'),
+                        Text(
+                          DateFormat('dd MMM yyyy, hh:mm a').format(dateTime),
+                        ),
+                        Text('Status: $status'),
+                      ],
+                    ),
+                    trailing:
+                        userRole == 'super_admin'
+                            ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.edit,
+                                    color: Colors.blue,
+                                  ),
+                                  onPressed:
+                                      () => _openAppointmentDialog(doc: doc),
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.delete,
+                                    color: Colors.red,
+                                  ),
+                                  onPressed: () => _deleteAppointment(doc.id),
+                                ),
+                              ],
+                            )
+                            : userRole == 'SalonManager'
+                            ? PopupMenuButton<String>(
+                              onSelected:
+                                  (value) => _updateStatus(doc.id, value),
+                              itemBuilder:
+                                  (context) => [
+                                    const PopupMenuItem(
+                                      value: 'Confirmed',
+                                      child: Text('Confirm'),
+                                    ),
+                                    const PopupMenuItem(
+                                      value: 'Rejected',
+                                      child: Text('Reject'),
+                                    ),
+                                    const PopupMenuItem(
+                                      value: 'Completed',
+                                      child: Text('Complete'),
+                                    ),
+                                  ],
+                              icon: const Icon(Icons.edit_calendar),
+                            )
+                            : null,
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: _getAppointmentsStream(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) return const Center(child: Text('Error'));
-          if (!snapshot.hasData)
-            return const Center(child: CircularProgressIndicator());
-
-          final docs = snapshot.data!.docs;
-          final events = _groupAppointmentsByDay(docs);
-
-          List _getEventsForDay(DateTime day) {
-            return events[DateTime(day.year, day.month, day.day)] ?? [];
-          }
-
-          return Column(
-            children: [
-              TableCalendar(
-                firstDay: DateTime.utc(2020, 1, 1),
-                lastDay: DateTime.utc(2030, 12, 31),
-                focusedDay: _focusedDay,
-                selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-                calendarFormat: _calendarFormat,
-                onDaySelected: (selectedDay, focusedDay) {
-                  setState(() {
-                    _selectedDay = selectedDay;
-                    _focusedDay = focusedDay;
-                  });
-                },
-                onFormatChanged: (format) {
-                  setState(() {
-                    _calendarFormat = format;
-                  });
-                },
-                eventLoader: _getEventsForDay,
-                onPageChanged: (focusedDay) {
-                  _focusedDay = focusedDay;
-                },
-              ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: ListView(
-                  children:
-                      _getEventsForDay(_selectedDay ?? _focusedDay).map((doc) {
-                        final data = doc.data() as Map<String, dynamic>;
-                        final customerName = data['customerName'] ?? 'Unknown';
-                        final service = data['service'] ?? 'No service';
-                        return ListTile(
-                          title: Text(customerName),
-                          subtitle: Text(service),
-                        );
-                      }).toList(),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
+      floatingActionButton:
+          userRole == 'super_admin'
+              ? FloatingActionButton(
+                onPressed: () => _openAppointmentDialog(),
+                child: const Icon(Icons.add),
+              )
+              : null,
     );
   }
 }

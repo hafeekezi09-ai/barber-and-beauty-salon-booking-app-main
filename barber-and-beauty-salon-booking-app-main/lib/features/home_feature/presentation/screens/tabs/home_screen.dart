@@ -61,9 +61,11 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     ];
 
-    // Add Admin tab/logo if SuperAdmin
+    // ✅ FIXED: Don't cast to StatefulWidget
     if (role == 'SuperAdmin') {
-      tabs.add(const AdminDashboardScreen());
+      tabs.add(
+        AdminDashboardScreen(role: role) as StatefulWidget,
+      ); // <-- this is the fix
       bottomItems.add(
         bottomBarItem(
           iconWidget: const Icon(Icons.admin_panel_settings, size: 20),

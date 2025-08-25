@@ -1,8 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class SalonManagementScreen extends StatefulWidget {
-  const SalonManagementScreen({super.key});
+  const SalonManagementScreen({Key? key}) : super(key: key);
 
   @override
   State<SalonManagementScreen> createState() => _SalonManagementScreenState();
@@ -13,11 +14,65 @@ class _SalonManagementScreenState extends State<SalonManagementScreen> {
     'salons',
   );
 
-  void _openSalonForm({DocumentSnapshot? document}) {
-    final TextEditingController nameController = TextEditingController(
-      text: document?['name'] ?? '',
-    );
-    final TextEditingController locationController = TextEditingController(
+  String? userRole;
+  bool loadingRole = true;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Listen to auth changes
+    FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (user != null) {
+        _fetchUserRole(user.uid);
+      } else {
+        setState(() {
+          userRole = null;
+          loadingRole = false;
+        });
+      }
+    });
+  }
+
+  // Fetch role from admins collection
+  Future<void> _fetchUserRole(String uid) async {
+    setState(() {
+      loadingRole = true;
+    });
+
+    try {
+      final docSnapshot =
+          await FirebaseFirestore.instance.collection('admins').doc(uid).get();
+
+      if (docSnapshot.exists) {
+        final data = docSnapshot.data();
+        final role =
+            data != null && data.containsKey('role')
+                ? data['role'].toString().toLowerCase()
+                : null;
+
+        setState(() {
+          userRole = role;
+          loadingRole = false;
+        });
+      } else {
+        setState(() {
+          userRole = null;
+          loadingRole = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        userRole = null;
+        loadingRole = false;
+      });
+    }
+  }
+
+  // Add/Edit salon dialog
+  void openSalonForm({DocumentSnapshot? document}) {
+    final nameController = TextEditingController(text: document?['name'] ?? '');
+    final locationController = TextEditingController(
       text: document?['location'] ?? '',
     );
 
@@ -48,32 +103,27 @@ class _SalonManagementScreenState extends State<SalonManagementScreen> {
                 onPressed: () async {
                   final name = nameController.text.trim();
                   final location = locationController.text.trim();
-
                   if (name.isEmpty || location.isEmpty) return;
 
-                  if (document == null) {
-                    // Add new salon (with error handling)
-                    try {
+                  try {
+                    if (document == null) {
                       await salons.add({
                         'name': name,
                         'location': location,
                         'createdAt': Timestamp.now(),
                       });
-                    } catch (e) {
-                      print("🔥 Error adding salon: $e");
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text("Failed to add salon: $e")),
-                      );
+                    } else {
+                      await salons.doc(document.id).update({
+                        'name': name,
+                        'location': location,
+                      });
                     }
-                  } else {
-                    // Update existing salon
-                    await salons.doc(document.id).update({
-                      'name': name,
-                      'location': location,
-                    });
+                    Navigator.pop(context);
+                  } catch (e) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text("Failed: $e")));
                   }
-
-                  Navigator.pop(context);
                 },
                 child: Text(document == null ? 'Add' : 'Update'),
               ),
@@ -82,31 +132,38 @@ class _SalonManagementScreenState extends State<SalonManagementScreen> {
     );
   }
 
+  // Delete salon
   Future<void> _deleteSalon(String id) async {
-    await salons.doc(id).delete();
+    try {
+      await salons.doc(id).delete();
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed to delete: $e")));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (loadingRole) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    final canEdit = userRole == "super_admin";
+
     return Scaffold(
       appBar: AppBar(title: const Text("Salon Management")),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _openSalonForm(),
-        child: const Icon(Icons.add),
-      ),
       body: StreamBuilder<QuerySnapshot>(
         stream: salons.orderBy('createdAt', descending: true).snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return const Center(child: Text('Something went wrong.'));
           }
-
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
           final salonList = snapshot.data!.docs;
-
           if (salonList.isEmpty) {
             return const Center(child: Text('No salons found.'));
           }
@@ -115,30 +172,41 @@ class _SalonManagementScreenState extends State<SalonManagementScreen> {
             itemCount: salonList.length,
             itemBuilder: (context, index) {
               final doc = salonList[index];
-              final name = doc['name'];
-              final location = doc['location'];
+              final name = doc['name'] ?? '';
+              final location = doc['location'] ?? '';
 
               return ListTile(
                 title: Text(name),
                 subtitle: Text(location),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit, color: Colors.blue),
-                      onPressed: () => _openSalonForm(document: doc),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _deleteSalon(doc.id),
-                    ),
-                  ],
-                ),
+                trailing:
+                    canEdit
+                        ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit, color: Colors.blue),
+                              onPressed: () => openSalonForm(document: doc),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () => _deleteSalon(doc.id),
+                            ),
+                          ],
+                        )
+                        : null,
               );
             },
           );
         },
       ),
+      floatingActionButton:
+          canEdit
+              ? FloatingActionButton(
+                backgroundColor: Colors.blue,
+                onPressed: () => openSalonForm(),
+                child: const Icon(Icons.add),
+              )
+              : null,
     );
   }
 }

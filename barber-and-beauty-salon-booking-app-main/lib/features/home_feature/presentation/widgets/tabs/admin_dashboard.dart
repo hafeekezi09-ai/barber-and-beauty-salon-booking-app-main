@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
-  const AdminDashboardScreen({super.key});
+  const AdminDashboardScreen({super.key, required String role});
 
   @override
   Widget build(BuildContext context) {

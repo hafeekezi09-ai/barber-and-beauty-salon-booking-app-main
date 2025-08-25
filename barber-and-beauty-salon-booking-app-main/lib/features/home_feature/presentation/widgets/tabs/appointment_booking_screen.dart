@@ -1,7 +1,7 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class AppointmentBookingScreen extends StatefulWidget {
   const AppointmentBookingScreen({super.key});
@@ -12,18 +12,12 @@ class AppointmentBookingScreen extends StatefulWidget {
 }
 
 class _AppointmentBookingScreenState extends State<AppointmentBookingScreen> {
-  // Step
   int currentStep = 0;
-
-  // Step 1
   String? selectedService;
   String? selectedStylist;
-
-  // Step 2
   DateTime? selectedDate;
   TimeOfDay? selectedTime;
 
-  // Dummy data
   final List<String> services = [
     'Haircut',
     'Massage',
@@ -39,7 +33,6 @@ class _AppointmentBookingScreenState extends State<AppointmentBookingScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Book Appointment')),
       body: Stepper(
-        type: StepperType.vertical,
         currentStep: currentStep,
         onStepContinue: () {
           if (currentStep == 0 &&
@@ -61,7 +54,7 @@ class _AppointmentBookingScreenState extends State<AppointmentBookingScreen> {
           if (currentStep < 2) {
             setState(() => currentStep += 1);
           } else {
-            _showConfirmationDialog();
+            _submitAppointmentToFirestore();
           }
         },
         onStepCancel: () {
@@ -123,7 +116,6 @@ class _AppointmentBookingScreenState extends State<AppointmentBookingScreen> {
             content: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Select Date:'),
                 ElevatedButton(
                   onPressed: () async {
                     final date = await showDatePicker(
@@ -143,7 +135,6 @@ class _AppointmentBookingScreenState extends State<AppointmentBookingScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text('Select Time:'),
                 ElevatedButton(
                   onPressed: () async {
                     final time = await showTimePicker(
@@ -194,47 +185,41 @@ class _AppointmentBookingScreenState extends State<AppointmentBookingScreen> {
     );
   }
 
-  void _showConfirmationDialog() {
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Confirm Appointment'),
-            content: Text(
-              'Service: $selectedService\nStylist: $selectedStylist\nDate: ${selectedDate != null ? DateFormat('dd MMM yyyy').format(selectedDate!) : ''}\nTime: ${selectedTime != null ? selectedTime!.format(context) : ''}\nStatus: Pending',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () async {
-                  // Save latest appointment with status to SharedPreferences
-                  final prefs = await SharedPreferences.getInstance();
-                  final appointment = {
-                    'name': selectedStylist ?? '',
-                    'service': selectedService ?? '',
-                    'dateTime':
-                        selectedDate != null && selectedTime != null
-                            ? '${DateFormat('dd MMM yyyy').format(selectedDate!)} . ${selectedTime!.format(context)}'
-                            : '',
-                    'price': '170.00', // Default price
-                    'image': 'assets/images/massage.jpg',
-                    'status': 'Pending', // Initial status
-                  };
-                  await prefs.setString(
-                    'latest_appointment',
-                    jsonEncode(appointment),
-                  );
+  Future<void> _submitAppointmentToFirestore() async {
+    if (selectedDate == null || selectedTime == null) return;
 
-                  Navigator.pop(context); // Close dialog
-                  Navigator.pop(context, true); // Return success to ProfileTab
-                },
-                child: const Text('Confirm'),
-              ),
-            ],
-          ),
+    final combinedDateTime = DateTime(
+      selectedDate!.year,
+      selectedDate!.month,
+      selectedDate!.day,
+      selectedTime!.hour,
+      selectedTime!.minute,
     );
+
+    final user = FirebaseAuth.instance.currentUser;
+
+    final appointment = {
+      'uid': user?.uid ?? '', // Important for rules
+      'customer': selectedStylist ?? 'Unknown',
+      'service': selectedService ?? 'Unknown',
+      'dateTime': Timestamp.fromDate(combinedDateTime),
+      'status': 'Pending',
+      'createdAt': Timestamp.now(),
+    };
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('appointments')
+          .add(appointment);
+      if (!mounted) return;
+      Navigator.pop(context, true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Appointment booked successfully')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to book: $e')));
+    }
   }
 }
