@@ -1,8 +1,9 @@
-import 'dart:io';
+import 'dart:typed_data';
+import 'package:barber_and_beauty_salon_booking_app/core/widgets/profile_notifier.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'edit_profile_screen.dart';
-import 'appointment_booking_screen.dart';
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
@@ -12,7 +13,6 @@ class ProfileTab extends StatefulWidget {
 }
 
 class _ProfileTabState extends State<ProfileTab> {
-  File? _imageFile;
   String name = "Hk";
   String email = "hafeekezi00@gmail.com";
   String mobileNumber = "9325687415";
@@ -29,41 +29,32 @@ class _ProfileTabState extends State<ProfileTab> {
       name = prefs.getString('name') ?? name;
       email = prefs.getString('email') ?? email;
       mobileNumber = prefs.getString('mobile') ?? mobileNumber;
-
-      final imagePath = prefs.getString('profile_image');
-      if (imagePath != null && File(imagePath).existsSync()) {
-        _imageFile = File(imagePath);
-      }
     });
+  }
+
+  Uint8List? _getCurrentImage() {
+    return profileImageNotifier.value;
   }
 
   @override
   Widget build(BuildContext context) {
+    final imageBytes = _getCurrentImage();
+
     return SafeArea(
       child: Column(
         children: [
-          // 🔙 Back button row
-          if (Navigator.canPop(context))
-            Align(
-              alignment: Alignment.centerLeft,
-              child: IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ),
-
           Expanded(
             child: SingleChildScrollView(
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 20),
                     CircleAvatar(
                       radius: 50,
                       backgroundImage:
-                          _imageFile != null
-                              ? FileImage(_imageFile!)
+                          imageBytes != null
+                              ? MemoryImage(imageBytes)
                               : const AssetImage(
                                     'assets/images/profile-image.jpg',
                                   )
@@ -77,19 +68,15 @@ class _ProfileTabState extends State<ProfileTab> {
                         fontSize: 18,
                       ),
                     ),
-                    const SizedBox(height: 5),
                     Text(
                       email,
                       style: const TextStyle(fontSize: 14, color: Colors.grey),
                     ),
-                    const SizedBox(height: 5),
                     Text(
                       mobileNumber,
                       style: const TextStyle(fontSize: 14, color: Colors.grey),
                     ),
                     const SizedBox(height: 30),
-
-                    // ✏️ Edit Profile Button
                     ElevatedButton(
                       onPressed: () async {
                         final updated = await Navigator.push(
@@ -98,28 +85,12 @@ class _ProfileTabState extends State<ProfileTab> {
                             builder: (_) => const EditProfileScreen(),
                           ),
                         );
-
-                        if (updated == true) {
-                          _loadProfile();
-                        }
+                        if (updated == true) _loadProfile();
                       },
                       child: const Text("Edit Profile"),
                     ),
-
                     const SizedBox(height: 10),
-
-                    // 📅 Book Appointment Button
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const AppointmentBookingScreen(),
-                          ),
-                        );
-                      },
-                      child: const Text("Book Appointment"),
-                    ),
+                    // Book Appointment button removed as per your request
                   ],
                 ),
               ),

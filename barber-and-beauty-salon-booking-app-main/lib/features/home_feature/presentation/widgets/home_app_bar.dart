@@ -1,9 +1,5 @@
-import 'package:barber_and_beauty_salon_booking_app/core/gen/assets.gen.dart';
-import 'package:barber_and_beauty_salon_booking_app/core/gen/fonts.gen.dart';
-import 'package:barber_and_beauty_salon_booking_app/core/theme/dimens.dart';
-
-import 'package:barber_and_beauty_salon_booking_app/core/widgets/app_svg_viewer.dart';
-import 'package:barber_and_beauty_salon_booking_app/core/widgets/user_profile_image_widget.dart';
+import 'dart:typed_data';
+import 'package:barber_and_beauty_salon_booking_app/core/widgets/profile_notifier.dart';
 import 'package:flutter/material.dart';
 
 class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -12,38 +8,46 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: Dimens.padding),
+      padding: const EdgeInsets.only(top: 16.0),
       child: AppBar(
-        title: Column(
-          spacing: Dimens.padding,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Hafee',
-              style: TextStyle(
-                fontFamily: FontFamily.aksharLight,
-                fontSize: 16,
-              ),
-            ),
-            Row(
-              spacing: Dimens.padding,
+        title: ValueListenableBuilder<ProfileInfo>(
+          valueListenable: profileInfoNotifier,
+          builder: (context, info, _) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                AppSvgViewer(Assets.icons.location, width: 18),
                 Text(
-                  'chennai',
-                  style: TextStyle(
-                    fontFamily: FontFamily.aksharMedium,
-                    fontSize: 14,
+                  info.name,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w400,
                   ),
                 ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.location_on, size: 18),
+                    const SizedBox(width: 4),
+                    Text(
+                      info.location,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
               ],
-            ),
-          ],
+            );
+          },
         ),
-        leading: UserProfileImageWidget(),
+        leading: const Padding(
+          padding: EdgeInsets.only(left: 16.0),
+          child: UserProfileImageWidget(),
+        ),
         leadingWidth: 85,
-        titleSpacing: Dimens.padding,
-        actionsPadding: EdgeInsets.symmetric(horizontal: Dimens.largePadding),
+        titleSpacing: 16.0,
+        actions: const [],
       ),
     );
   }
@@ -51,4 +55,31 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize =>
       Size.fromHeight(AppBar().preferredSize.height + 16.0);
+}
+
+/// Profile Image Widget with tap to edit
+class UserProfileImageWidget extends StatelessWidget {
+  const UserProfileImageWidget({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<Uint8List?>(
+      valueListenable: profileImageNotifier,
+      builder: (context, value, _) {
+        return GestureDetector(
+          onTap: () async {
+            // Changes automatically reflected via ValueNotifier
+          },
+          child: CircleAvatar(
+            radius: 25,
+            backgroundImage:
+                value != null
+                    ? MemoryImage(value)
+                    : const AssetImage('assets/images/profile-image.jpg')
+                        as ImageProvider,
+          ),
+        );
+      },
+    );
+  }
 }

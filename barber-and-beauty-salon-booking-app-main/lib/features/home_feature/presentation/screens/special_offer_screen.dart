@@ -10,15 +10,11 @@ class SpecialOffersScreen extends StatelessWidget {
     },
     {
       'title': 'Free Facial',
-      'description': 'Book a massage and get a facial absolutely free!',
+      'description': 'Book a massage and get a facial free!',
     },
     {
       'title': '20% OFF Hair Dye',
       'description': 'Limited time offer on premium hair dye services.',
-    },
-    {
-      'title': 'Buy 1 Get 1 Free',
-      'description': 'Manicure & Pedicure combo available now.',
     },
   ];
 
@@ -38,12 +34,12 @@ class SpecialOffersScreen extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: ListTile(
+              leading: const Icon(Icons.local_offer, color: Colors.red),
               title: Text(
                 offer['title']!,
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               subtitle: Text(offer['description']!),
-              leading: const Icon(Icons.local_offer, color: Colors.red),
             ),
           );
         },

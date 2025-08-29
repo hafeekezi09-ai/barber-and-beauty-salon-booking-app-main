@@ -1,4 +1,7 @@
 import 'dart:io';
+import 'dart:convert';
+import 'package:barber_and_beauty_salon_booking_app/core/widgets/profile_notifier.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,10 +15,12 @@ class EditProfileScreen extends StatefulWidget {
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
   final TextEditingController nameController = TextEditingController();
+  final TextEditingController locationController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController mobileController = TextEditingController();
 
   File? _imageFile;
+  Uint8List? _webImage;
   final ImagePicker _picker = ImagePicker();
 
   @override
@@ -26,191 +31,107 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _loadProfile() async {
     final prefs = await SharedPreferences.getInstance();
-    nameController.text = prefs.getString('name') ?? '';
-    emailController.text = prefs.getString('email') ?? '';
-    mobileController.text = prefs.getString('mobile') ?? '';
-    final imagePath = prefs.getString('profile_image');
-    if (imagePath != null && File(imagePath).existsSync()) {
-      setState(() {
-        _imageFile = File(imagePath);
-      });
-    }
+
+    setState(() {
+      nameController.text = prefs.getString('name') ?? 'Hafee';
+      locationController.text = prefs.getString('location') ?? 'Chennai';
+      emailController.text = prefs.getString('email') ?? '';
+      mobileController.text = prefs.getString('mobile') ?? '';
+
+      if (!kIsWeb) {
+        final path = prefs.getString('profile_image');
+        if (path != null && File(path).existsSync()) _imageFile = File(path);
+      } else {
+        final base64 = prefs.getString('profile_image_web');
+        if (base64 != null) _webImage = base64Decode(base64);
+      }
+    });
   }
 
   Future<void> _pickImage() async {
-    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
-      setState(() {
-        _imageFile = File(pickedFile.path);
-      });
+    final picked = await _picker.pickImage(source: ImageSource.gallery);
+    if (picked != null) {
+      if (!kIsWeb) {
+        _imageFile = File(picked.path);
+      } else {
+        _webImage = await picked.readAsBytes();
+      }
+      setState(() {});
     }
-  }
-
-  void _showUploadDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text(
-            'Upload Photo',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          content: const Text(
-            'Do you want to upload a new profile photo?',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _pickImage();
-              },
-              child: const Text(
-                'Upload',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   Future<void> _saveProfile() async {
     final prefs = await SharedPreferences.getInstance();
+
     await prefs.setString('name', nameController.text);
+    await prefs.setString('location', locationController.text);
     await prefs.setString('email', emailController.text);
     await prefs.setString('mobile', mobileController.text);
-    if (_imageFile != null) {
+
+    if (!kIsWeb && _imageFile != null) {
       await prefs.setString('profile_image', _imageFile!.path);
+      profileImageNotifier.value = _imageFile!.readAsBytesSync();
+    } else if (kIsWeb && _webImage != null) {
+      await prefs.setString('profile_image_web', base64Encode(_webImage!));
+      profileImageNotifier.value = _webImage;
     }
+
+    // Update profile info notifier
+    profileInfoNotifier.value = ProfileInfo(
+      name: nameController.text,
+      location: locationController.text,
+    );
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Profile saved successfully!')),
     );
 
-    // Return true to indicate profile was updated
     Navigator.pop(context, true);
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-    final labelColor = textColor.withOpacity(0.7);
-    final fillColor = isDark ? Colors.grey[900] : Colors.white;
+    final imageProvider =
+        _webImage != null
+            ? MemoryImage(_webImage!)
+            : _imageFile != null
+            ? FileImage(_imageFile!)
+            : const AssetImage('assets/images/profile-image.jpg')
+                as ImageProvider;
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: const Text(
-          "Edit Profile",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: theme.scaffoldBackgroundColor,
-        foregroundColor: textColor,
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text('Edit Profile')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(20),
         child: Column(
           children: [
             GestureDetector(
-              onTap: _showUploadDialog,
-              child: CircleAvatar(
-                radius: 50,
-                backgroundImage:
-                    _imageFile != null
-                        ? FileImage(_imageFile!)
-                        : const AssetImage('assets/images/profile.jpg')
-                            as ImageProvider,
-              ),
+              onTap: _pickImage,
+              child: CircleAvatar(radius: 50, backgroundImage: imageProvider),
             ),
             const SizedBox(height: 20),
             TextField(
               controller: nameController,
-              style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: fillColor,
-                labelText: "Full Name",
-                labelStyle: TextStyle(
-                  color: labelColor,
-                  fontWeight: FontWeight.bold,
-                ),
-                enabledBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: labelColor),
-                ),
-                focusedBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: textColor),
-                ),
-              ),
+              decoration: const InputDecoration(labelText: 'Name'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: locationController,
+              decoration: const InputDecoration(labelText: 'Location'),
             ),
             const SizedBox(height: 10),
             TextField(
               controller: emailController,
-              style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: fillColor,
-                labelText: "Email",
-                labelStyle: TextStyle(
-                  color: labelColor,
-                  fontWeight: FontWeight.bold,
-                ),
-                enabledBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: labelColor),
-                ),
-                focusedBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: textColor),
-                ),
-              ),
+              decoration: const InputDecoration(labelText: 'Email'),
             ),
             const SizedBox(height: 10),
             TextField(
               controller: mobileController,
+              decoration: const InputDecoration(labelText: 'Mobile'),
               keyboardType: TextInputType.phone,
-              style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: fillColor,
-                labelText: "Mobile Number",
-                labelStyle: TextStyle(
-                  color: labelColor,
-                  fontWeight: FontWeight.bold,
-                ),
-                enabledBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: labelColor),
-                ),
-                focusedBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: textColor),
-                ),
-              ),
             ),
             const SizedBox(height: 30),
-            ElevatedButton(
-              onPressed: _saveProfile,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: theme.colorScheme.primary,
-                foregroundColor: textColor,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 40,
-                  vertical: 15,
-                ),
-              ),
-              child: const Text(
-                "Save",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-            ),
+            ElevatedButton(onPressed: _saveProfile, child: const Text('Save')),
           ],
         ),
       ),

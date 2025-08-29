@@ -12,6 +12,24 @@ class StylistManagementScreenState extends State<StylistManagementScreen> {
   final CollectionReference stylists = FirebaseFirestore.instance.collection(
     'stylists',
   );
+  final CollectionReference salons = FirebaseFirestore.instance.collection(
+    'salons',
+  );
+
+  List<String> salonNames = [];
+
+  @override
+  void initState() {
+    super.initState();
+    fetchSalons();
+  }
+
+  Future<void> fetchSalons() async {
+    final snapshot = await salons.get();
+    setState(() {
+      salonNames = snapshot.docs.map((doc) => doc['name'].toString()).toList();
+    });
+  }
 
   void openAddForm({DocumentSnapshot? document}) {
     final TextEditingController nameController = TextEditingController(
@@ -20,6 +38,9 @@ class StylistManagementScreenState extends State<StylistManagementScreen> {
     final TextEditingController experienceController = TextEditingController(
       text: document?.get('experience')?.toString() ?? '',
     );
+    String selectedSalon =
+        document?.get('salonName') ??
+        (salonNames.isNotEmpty ? salonNames.first : '');
 
     showDialog(
       context: context,
@@ -40,6 +61,23 @@ class StylistManagementScreenState extends State<StylistManagementScreen> {
                     labelText: 'Experience (years)',
                   ),
                 ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: selectedSalon.isNotEmpty ? selectedSalon : null,
+                  items:
+                      salonNames
+                          .map(
+                            (salon) => DropdownMenuItem(
+                              value: salon,
+                              child: Text(salon),
+                            ),
+                          )
+                          .toList(),
+                  decoration: const InputDecoration(labelText: 'Salon Name'),
+                  onChanged: (value) {
+                    if (value != null) selectedSalon = value;
+                  },
+                ),
               ],
             ),
             actions: [
@@ -51,7 +89,10 @@ class StylistManagementScreenState extends State<StylistManagementScreen> {
                 onPressed: () async {
                   final name = nameController.text.trim();
                   final experienceText = experienceController.text.trim();
-                  if (name.isEmpty || experienceText.isEmpty) return;
+                  if (name.isEmpty ||
+                      experienceText.isEmpty ||
+                      selectedSalon.isEmpty)
+                    return;
 
                   final experience = int.tryParse(experienceText);
                   if (experience == null) {
@@ -66,12 +107,14 @@ class StylistManagementScreenState extends State<StylistManagementScreen> {
                       await stylists.add({
                         'name': name,
                         'experience': experience,
+                        'salonName': selectedSalon,
                         'createdAt': Timestamp.now(),
                       });
                     } else {
                       await stylists.doc(document.id).update({
                         'name': name,
                         'experience': experience,
+                        'salonName': selectedSalon,
                       });
                     }
                     Navigator.pop(context);
@@ -101,7 +144,14 @@ class StylistManagementScreenState extends State<StylistManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Stylist Management")),
+      backgroundColor: Colors.green[100],
+      appBar: AppBar(
+        title: const Text(
+          "Stylist Management",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: Colors.green[400],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => openAddForm(),
         child: const Icon(Icons.add),
@@ -116,41 +166,64 @@ class StylistManagementScreenState extends State<StylistManagementScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final validDocs =
+          final docs =
               snapshot.data!.docs.where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
                 return data.containsKey('name') &&
-                    data.containsKey('experience');
+                    data.containsKey('experience') &&
+                    data.containsKey('salonName');
               }).toList();
 
-          if (validDocs.isEmpty) {
+          if (docs.isEmpty) {
             return const Center(child: Text('No stylists found.'));
           }
 
           return ListView.builder(
-            itemCount: validDocs.length,
+            padding: const EdgeInsets.all(12),
+            itemCount: docs.length,
             itemBuilder: (context, index) {
-              final doc = validDocs[index];
+              final doc = docs[index];
               final data = doc.data() as Map<String, dynamic>;
 
               final name = data['name'] ?? 'No Name';
               final experience = data['experience'] ?? 'N/A';
+              final salonName = data['salonName'] ?? 'No Salon';
 
-              return ListTile(
-                title: Text(name),
-                subtitle: Text('Experience: $experience yrs'),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit, color: Colors.blue),
-                      onPressed: () => openAddForm(document: doc),
+              return Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 3,
+                margin: const EdgeInsets.symmetric(vertical: 6),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  title: Text(
+                    name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _deleteStylist(doc.id),
-                    ),
-                  ],
+                  ),
+                  subtitle: Text(
+                    'Experience: $experience yrs\nSalon: $salonName',
+                  ),
+                  isThreeLine: true,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit, color: Colors.blue),
+                        onPressed: () => openAddForm(document: doc),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => _deleteStylist(doc.id),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },

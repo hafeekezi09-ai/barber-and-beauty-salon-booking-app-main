@@ -43,6 +43,7 @@ class SuperAdminFeedbackScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.lightGreen[100], // Screen background
       appBar: AppBar(title: const Text("User Feedback")),
       body: StreamBuilder<QuerySnapshot>(
         stream:
@@ -71,6 +72,7 @@ class SuperAdminFeedbackScreen extends StatelessWidget {
               final comment = data['comment'] ?? "";
 
               return Card(
+                color: Colors.lightGreen[200], // Card background color
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Padding(
                   padding: const EdgeInsets.all(12),

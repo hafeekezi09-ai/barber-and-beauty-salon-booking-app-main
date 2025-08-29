@@ -3,30 +3,57 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-class CalendarTab extends StatelessWidget {
+class CalendarTab extends StatefulWidget {
   const CalendarTab({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final currentUser = FirebaseAuth.instance.currentUser;
+  State<CalendarTab> createState() => _CalendarTabState();
+}
 
-    if (currentUser == null) {
-      return const Center(child: Text("Not logged in"));
+class _CalendarTabState extends State<CalendarTab> {
+  bool currentUserIsManager = false;
+  String? currentUserId;
+
+  @override
+  void initState() {
+    super.initState();
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      currentUserId = currentUser.uid;
+      _checkIfManager(currentUser.uid);
+    }
+  }
+
+  Future<void> _checkIfManager(String uid) async {
+    final doc =
+        await FirebaseFirestore.instance.collection('admins').doc(uid).get();
+    if (doc.exists) {
+      setState(() {
+        currentUserIsManager = doc.data()?['role'] == 'SalonManager';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (currentUserId == null) {
+      return const Center(
+        child: Text("Please log in to see your appointments."),
+      );
     }
 
-    final Stream<QuerySnapshot<Map<String, dynamic>>> appointmentStream =
+    final appointmentStream =
         FirebaseFirestore.instance
             .collection('appointments')
-            .where('uid', isEqualTo: currentUser.uid)
-            .orderBy('createdAt', descending: true)
+            .where('userId', whereIn: [currentUserId])
+            .orderBy('appointmentTime', descending: true)
             .snapshots();
 
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: appointmentStream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          print('Firestore snapshot error: ${snapshot.error}');
-          return const Center(child: Text('Something went wrong.'));
+          return Center(child: Text('Error: ${snapshot.error}'));
         }
 
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -43,32 +70,57 @@ class CalendarTab extends StatelessWidget {
           itemCount: docs.length,
           itemBuilder: (context, index) {
             final data = docs[index].data();
+            final docId = docs[index].id;
 
-            final customer = data['customer'] as String? ?? 'Unknown';
-            final service = data['service'] as String? ?? 'Unknown';
-            final stylist = data['stylist'] as String? ?? 'Unknown';
-            final status = data['status'] as String? ?? 'Pending';
+            final service = data['serviceName']?.toString() ?? 'Unknown';
+            final shop = data['shopName']?.toString() ?? 'Unknown';
+            final notes = data['notes']?.toString() ?? '';
+            final customer = data['customer']?.toString() ?? 'Unknown';
+            String status = data['status']?.toString() ?? 'pending';
 
-            final timestamp = data['dateTime'] as Timestamp?;
-            final dateTime = timestamp?.toDate();
+            final timestamp = data['appointmentTime'];
             final formattedDate =
-                dateTime != null
-                    ? DateFormat('dd MMM yyyy, hh:mm a').format(dateTime)
+                timestamp is Timestamp
+                    ? DateFormat(
+                      'dd MMM yyyy, hh:mm a',
+                    ).format(timestamp.toDate())
                     : 'Unknown date';
 
             return Card(
               margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               child: ListTile(
-                title: Text('$customer • $service'),
+                title: Text('$service at $shop'),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Stylist: $stylist'),
-                    Text('Time: $formattedDate'),
-                    Text('Status: $status'),
+                    Text('Customer: $customer'),
+                    Text('Date & Time: $formattedDate'),
+                    if (notes.isNotEmpty) Text('Notes: $notes'),
                   ],
                 ),
-                trailing: const Icon(Icons.calendar_today),
+                trailing:
+                    currentUserIsManager
+                        ? DropdownButton<String>(
+                          value: status,
+                          items:
+                              ['pending', 'confirmed', 'rejected']
+                                  .map(
+                                    (s) => DropdownMenuItem(
+                                      value: s,
+                                      child: Text(s),
+                                    ),
+                                  )
+                                  .toList(),
+                          onChanged: (newStatus) {
+                            if (newStatus != null) {
+                              FirebaseFirestore.instance
+                                  .collection('appointments')
+                                  .doc(docId)
+                                  .update({'status': newStatus});
+                            }
+                          },
+                        )
+                        : Text('Status: $status'),
               ),
             );
           },
