@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'salon_model.dart';
 import 'salon_details_screen.dart';
 
@@ -13,66 +14,11 @@ class _SearchTabState extends State<SearchTab> {
   final TextEditingController searchController = TextEditingController();
   String searchTerm = "";
 
-  final List<Salon> salons = [
-    Salon(
-      name: "Glamour Hair Salon",
-      type: "Hair salon",
-      location: "MG Road, City",
-      contact: "9876543210",
-      imageUrl: "assets/images/barbor_shop.jpg",
-      rating: 4.5,
-    ),
-    Salon(
-      name: "Relax Massage Center",
-      type: "Massage",
-      location: "Brigade Road, City",
-      contact: "9876543211",
-      imageUrl: "assets/images/beauty.jpg",
-      rating: 4.2,
-    ),
-    Salon(
-      name: "Style Barber Shop",
-      type: "Barber",
-      location: "Church Street, City",
-      contact: "9876543212",
-      imageUrl: "assets/images/client.jpg",
-      rating: 4.8,
-    ),
-    Salon(
-      name: "Hairstyle Studio",
-      type: "Hairstyle",
-      location: "Main Street, City",
-      contact: "9876543213",
-      imageUrl: "assets/images/female_hair.jpg",
-      rating: 4.6,
-    ),
-    Salon(
-      name: "Facial & Skin Care",
-      type: "Facial",
-      location: "Park Avenue, City",
-      contact: "9876543214",
-      imageUrl: "assets/images/posture.jpg",
-      rating: 4.3,
-    ),
-    Salon(
-      name: "Manicure & Pedicure Hub",
-      type: "Manicure",
-      location: "City Center, City",
-      contact: "9876543215",
-      imageUrl: "assets/images/smart_hair.jpg",
-      rating: 4.7,
-    ),
-  ];
+  final CollectionReference salonsCollection = FirebaseFirestore.instance
+      .collection('salons');
 
   @override
   Widget build(BuildContext context) {
-    final filteredSalons =
-        salons.where((s) {
-          final query = searchTerm.toLowerCase();
-          return s.name.toLowerCase().contains(query) ||
-              s.type.toLowerCase().contains(query);
-        }).toList();
-
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -89,70 +35,106 @@ class _SearchTabState extends State<SearchTab> {
             ),
             onChanged: (value) {
               setState(() {
-                searchTerm = value; // just update the list
+                searchTerm = value.toLowerCase();
               });
             },
           ),
           const SizedBox(height: 16),
           Expanded(
-            child:
-                filteredSalons.isEmpty
-                    ? const Center(child: Text("No salons found"))
-                    : ListView.builder(
-                      itemCount: filteredSalons.length,
-                      itemBuilder: (context, index) {
-                        final salon = filteredSalons[index];
-                        return Card(
-                          margin: const EdgeInsets.symmetric(vertical: 8),
-                          child: ListTile(
-                            leading: Image.asset(
-                              salon.imageUrl,
-                              width: 60,
-                              height: 60,
-                              fit: BoxFit.cover,
+            child: StreamBuilder<QuerySnapshot>(
+              stream:
+                  salonsCollection
+                      .orderBy('createdAt', descending: true)
+                      .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(child: Text("No salons found"));
+                }
+
+                // Map Firestore docs to Salon model
+                final salons =
+                    snapshot.data!.docs.map((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      return Salon(
+                        name: data['name'] ?? '',
+                        type: data['type'] ?? '',
+                        location: data['location'] ?? '',
+                        contact: data['contact'] ?? '',
+                        imageUrl:
+                            data['imageUrl'] ?? 'assets/images/default.jpg',
+                        rating: (data['rating'] ?? 0).toDouble(),
+                      );
+                    }).toList();
+
+                // Filter by search term
+                final filteredSalons =
+                    salons.where((s) {
+                      return s.name.toLowerCase().contains(searchTerm) ||
+                          s.type.toLowerCase().contains(searchTerm);
+                    }).toList();
+
+                if (filteredSalons.isEmpty) {
+                  return const Center(child: Text("No salons found"));
+                }
+
+                return ListView.builder(
+                  itemCount: filteredSalons.length,
+                  itemBuilder: (context, index) {
+                    final salon = filteredSalons[index];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      child: ListTile(
+                        leading:
+                            salon.imageUrl.isNotEmpty
+                                ? Image.network(
+                                  salon.imageUrl,
+                                  width: 60,
+                                  height: 60,
+                                  fit: BoxFit.cover,
+                                  errorBuilder:
+                                      (_, __, ___) => const Icon(Icons.error),
+                                )
+                                : const Icon(Icons.store),
+                        title: Text(
+                          salon.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(salon.location),
+                            if (salon.contact.isNotEmpty)
+                              Text("Contact: ${salon.contact}"),
+                            Row(
+                              children: List.generate(5, (i) {
+                                return i < salon.rating.round()
+                                    ? const Icon(
+                                      Icons.star,
+                                      color: Colors.orange,
+                                      size: 16,
+                                    )
+                                    : const Icon(Icons.star_border, size: 16);
+                              }),
                             ),
-                            title: Text(
-                              salon.name,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
+                          ],
+                        ),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => SalonDetailsPage(salon: salon),
                             ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(salon.location),
-                                Text("Contact: ${salon.contact}"),
-                                Row(
-                                  children: List.generate(5, (i) {
-                                    if (i < salon.rating.round()) {
-                                      return const Icon(
-                                        Icons.star,
-                                        color: Colors.orange,
-                                        size: 16,
-                                      );
-                                    } else {
-                                      return const Icon(
-                                        Icons.star_border,
-                                        size: 16,
-                                      );
-                                    }
-                                  }),
-                                ),
-                              ],
-                            ),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder:
-                                      (_) => SalonDetailsPage(salon: salon),
-                                ),
-                              );
-                            },
-                          ),
-                        );
-                      },
-                    ),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),
