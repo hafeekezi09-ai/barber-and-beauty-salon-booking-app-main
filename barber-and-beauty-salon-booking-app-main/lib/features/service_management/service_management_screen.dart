@@ -200,13 +200,13 @@ class _ServiceManagementScreenState extends State<ServiceManagementScreen> {
     final canEdit = userRole == 'super_admin';
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color.fromARGB(255, 86, 230, 81),
       appBar: AppBar(
         title: const Text(
           "Service Management",
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
-        backgroundColor: Colors.blue,
+        backgroundColor: const Color.fromARGB(255, 57, 174, 123),
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: services.orderBy('createdAt', descending: true).snapshots(),

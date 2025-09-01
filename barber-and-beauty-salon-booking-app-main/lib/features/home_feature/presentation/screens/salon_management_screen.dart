@@ -170,7 +170,7 @@ class _SalonManagementScreenState extends State<SalonManagementScreen> {
     final canEdit = userRole == "super_admin";
 
     return Scaffold(
-      backgroundColor: Colors.lightGreen[100],
+      backgroundColor: const Color.fromARGB(255, 155, 231, 69),
       appBar: AppBar(
         title: const Text(
           "Salon Management",
@@ -211,7 +211,7 @@ class _SalonManagementScreenState extends State<SalonManagementScreen> {
               final imageUrl = doc['imageUrl'] ?? '';
 
               return Card(
-                color: Colors.white,
+                color: const Color.fromARGB(255, 234, 236, 235),
                 margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
                 child: ListTile(
                   leading:

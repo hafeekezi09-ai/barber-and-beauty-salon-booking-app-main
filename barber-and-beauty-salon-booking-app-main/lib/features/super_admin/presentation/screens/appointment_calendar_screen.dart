@@ -30,7 +30,19 @@ class _AppointmentCalendarScreenState extends State<AppointmentCalendarScreen> {
   final TextEditingController _customerNameController = TextEditingController();
   bool _isBookingAppointment = false;
 
-  final List<String> _services = ['haircut', 'massage', 'manicure', 'facial'];
+  final List<String> _services = [
+    'haircut',
+    'massage',
+    'manicure',
+    'facial',
+    'pedicure',
+    'hair color',
+    'spa',
+    'waxing',
+    'threading',
+    'makeup',
+    'bleach',
+  ];
 
   @override
   void initState() {
@@ -126,7 +138,6 @@ class _AppointmentCalendarScreenState extends State<AppointmentCalendarScreen> {
     );
 
     try {
-      // Add salonName to fix "Not Assigned" issue
       final salonName = salonNamesMap[_selectedSalonId!] ?? 'Salon';
 
       await appointments.add({
@@ -138,7 +149,8 @@ class _AppointmentCalendarScreenState extends State<AppointmentCalendarScreen> {
         'status': 'pending',
         'stylistId': _selectedStylistId,
         'salonId': _selectedSalonId,
-        'salonName': salonName, // <-- added
+        'salonName': salonName,
+        'paymentMethod': 'Cash',
         'timestamp': FieldValue.serverTimestamp(),
       });
 
@@ -196,162 +208,181 @@ class _AppointmentCalendarScreenState extends State<AppointmentCalendarScreen> {
     showDialog(
       context: context,
       builder:
-          (_) => AlertDialog(
-            title: Text(doc == null ? "Book Appointment" : "Edit Appointment"),
-            content: SingleChildScrollView(
-              child: Column(
-                children: [
-                  TextField(
-                    controller: _customerNameController,
-                    decoration: const InputDecoration(
-                      labelText: "Customer Name",
+          (_) => StatefulBuilder(
+            builder:
+                (context, setStateDialog) => AlertDialog(
+                  title: Text(
+                    doc == null ? "Book Appointment" : "Edit Appointment",
+                  ),
+                  content: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        TextField(
+                          controller: _customerNameController,
+                          decoration: const InputDecoration(
+                            labelText: "Customer Name",
+                          ),
+                          onChanged: (_) => setStateDialog(() {}),
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButton<String>(
+                          value: _appointmentService,
+                          isExpanded: true,
+                          items:
+                              _services
+                                  .map(
+                                    (s) => DropdownMenuItem(
+                                      value: s,
+                                      child: Text(_capitalize(s)),
+                                    ),
+                                  )
+                                  .toList(),
+                          onChanged: (val) {
+                            setState(() => _appointmentService = val!);
+                            setStateDialog(() {});
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButton<String>(
+                          value: _selectedSalonId,
+                          hint: const Text("Select Salon"),
+                          isExpanded: true,
+                          items:
+                              salonNamesMap.entries
+                                  .map(
+                                    (e) => DropdownMenuItem(
+                                      value: e.key,
+                                      child: Text(e.value),
+                                    ),
+                                  )
+                                  .toList(),
+                          onChanged: (val) {
+                            setState(() => _selectedSalonId = val);
+                            setStateDialog(() {});
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButton<String>(
+                          value: _selectedStylistId,
+                          hint: const Text("Select Stylist"),
+                          isExpanded: true,
+                          items:
+                              stylistNamesMap.entries
+                                  .map(
+                                    (e) => DropdownMenuItem(
+                                      value: e.key,
+                                      child: Text(e.value),
+                                    ),
+                                  )
+                                  .toList(),
+                          onChanged: (val) {
+                            setState(() => _selectedStylistId = val);
+                            setStateDialog(() {});
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () async {
+                                  await _pickDate();
+                                  setStateDialog(() {});
+                                },
+                                child: Text(
+                                  _selectedDate == null
+                                      ? "Select Date"
+                                      : "${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}",
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () async {
+                                  await _pickTime();
+                                  setStateDialog(() {});
+                                },
+                                child: Text(
+                                  _selectedTime == null
+                                      ? "Select Time"
+                                      : _selectedTime!.format(context),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _notesController,
+                          decoration: const InputDecoration(labelText: "Notes"),
+                          onChanged: (_) => setStateDialog(() {}),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  DropdownButton<String>(
-                    value:
-                        _services.contains(_appointmentService)
-                            ? _appointmentService
-                            : null,
-                    isExpanded: true,
-                    hint: const Text("Select Service"),
-                    items:
-                        _services
-                            .map(
-                              (s) => DropdownMenuItem(
-                                value: s,
-                                child: Text(_capitalize(s)),
-                              ),
-                            )
-                            .toList(),
-                    onChanged:
-                        (val) => setState(() => _appointmentService = val!),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButton<String>(
-                    value: _selectedSalonId,
-                    hint: const Text("Select Salon"),
-                    isExpanded: true,
-                    items:
-                        salonNamesMap.entries
-                            .map(
-                              (e) => DropdownMenuItem(
-                                value: e.key,
-                                child: Text(e.value),
-                              ),
-                            )
-                            .toList(),
-                    onChanged: (val) => setState(() => _selectedSalonId = val),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButton<String>(
-                    value: _selectedStylistId,
-                    hint: const Text("Select Stylist"),
-                    isExpanded: true,
-                    items:
-                        stylistNamesMap.entries
-                            .map(
-                              (e) => DropdownMenuItem(
-                                value: e.key,
-                                child: Text(e.value),
-                              ),
-                            )
-                            .toList(),
-                    onChanged:
-                        (val) => setState(() => _selectedStylistId = val),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: _pickDate,
-                          child: Text(
-                            _selectedDate == null
-                                ? "Select Date"
-                                : "${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}",
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: _pickTime,
-                          child: Text(
-                            _selectedTime == null
-                                ? "Select Time"
-                                : _selectedTime!.format(context),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _notesController,
-                    decoration: const InputDecoration(labelText: "Notes"),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed:
-                    _isBookingAppointment ? null : () => Navigator.pop(context),
-                child: const Text("Cancel"),
-              ),
-              ElevatedButton(
-                onPressed:
-                    _isBookingAppointment
-                        ? null
-                        : () async {
-                          setState(() => _isBookingAppointment = true);
-
-                          final newDateTime = DateTime(
-                            _selectedDate!.year,
-                            _selectedDate!.month,
-                            _selectedDate!.day,
-                            _selectedTime!.hour,
-                            _selectedTime!.minute,
-                          );
-
-                          try {
-                            if (doc == null) {
-                              await _bookAppointment();
-                            } else {
-                              final salonName =
-                                  salonNamesMap[_selectedSalonId!] ?? 'Salon';
-                              await appointments.doc(doc.id).update({
-                                'customer': _customerNameController.text.trim(),
-                                'serviceName': _appointmentService,
-                                'appointmentTime': newDateTime,
-                                'notes': _notesController.text.trim(),
-                                'stylistId': _selectedStylistId,
-                                'salonId': _selectedSalonId,
-                                'salonName': salonName,
-                              });
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text("Appointment updated!"),
-                                ),
-                              );
-                            }
-
-                            Navigator.pop(context);
-                          } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text("Error: $e")),
-                            );
-                          } finally {
-                            setState(() => _isBookingAppointment = false);
-                          }
-                        },
-                child:
-                    _isBookingAppointment
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : Text(doc == null ? "Book" : "Update"),
-              ),
-            ],
+                  actions: [
+                    TextButton(
+                      onPressed:
+                          _isBookingAppointment
+                              ? null
+                              : () => Navigator.pop(context),
+                      child: const Text("Cancel"),
+                    ),
+                    ElevatedButton(
+                      onPressed:
+                          _isBookingAppointment
+                              ? null
+                              : () async {
+                                setState(() => _isBookingAppointment = true);
+                                final newDateTime = DateTime(
+                                  _selectedDate!.year,
+                                  _selectedDate!.month,
+                                  _selectedDate!.day,
+                                  _selectedTime!.hour,
+                                  _selectedTime!.minute,
+                                );
+                                try {
+                                  if (doc == null) {
+                                    await _bookAppointment();
+                                  } else {
+                                    final salonName =
+                                        salonNamesMap[_selectedSalonId!] ??
+                                        'Salon';
+                                    await appointments.doc(doc.id).update({
+                                      'customer':
+                                          _customerNameController.text.trim(),
+                                      'serviceName': _appointmentService,
+                                      'appointmentTime': newDateTime,
+                                      'notes': _notesController.text.trim(),
+                                      'stylistId': _selectedStylistId,
+                                      'salonId': _selectedSalonId,
+                                      'salonName': salonName,
+                                    });
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text("Appointment updated!"),
+                                      ),
+                                    );
+                                  }
+                                  Navigator.pop(context);
+                                } catch (e) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text("Error: $e")),
+                                  );
+                                } finally {
+                                  setState(() => _isBookingAppointment = false);
+                                }
+                              },
+                      child:
+                          _isBookingAppointment
+                              ? const CircularProgressIndicator(
+                                color: Colors.white,
+                              )
+                              : Text(doc == null ? "Book" : "Update"),
+                    ),
+                  ],
+                ),
           ),
     );
   }
@@ -400,9 +431,12 @@ class _AppointmentCalendarScreenState extends State<AppointmentCalendarScreen> {
                   (data['appointmentTime'] as Timestamp).toDate();
 
               final stylistName = stylistNamesMap[stylistId] ?? 'Not Assigned';
-              // Use salonName if exists, fallback to mapping
               final salonName =
                   data['salonName'] ?? salonNamesMap[salonId] ?? 'Not Assigned';
+
+              final paymentMethod =
+                  (data['paymentMethod'] ?? 'Cash').toString();
+              final isPaid = paymentMethod != 'Cash';
 
               return Card(
                 color: Colors.lightGreen[200],
@@ -421,6 +455,14 @@ class _AppointmentCalendarScreenState extends State<AppointmentCalendarScreen> {
                           'dd MMM yyyy, hh:mm a',
                         ).format(appointmentTime),
                       ),
+                      if (userRole == 'super_admin')
+                        Text(
+                          'Payment: ${isPaid ? 'Paid' : 'Unpaid'}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: isPaid ? Colors.green[800] : Colors.red[700],
+                          ),
+                        ),
                     ],
                   ),
                   trailing:

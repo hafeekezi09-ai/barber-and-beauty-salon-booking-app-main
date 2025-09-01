@@ -76,7 +76,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       profileImageNotifier.value = _webImage;
     }
 
-    // Update profile info notifier
     profileInfoNotifier.value = ProfileInfo(
       name: nameController.text,
       location: locationController.text,
@@ -100,38 +99,67 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 as ImageProvider;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Profile')),
+      backgroundColor: Colors.lightGreen[100],
+      appBar: AppBar(
+        title: const Text('Edit Profile'),
+        backgroundColor: Colors.green[700],
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             GestureDetector(
               onTap: _pickImage,
-              child: CircleAvatar(radius: 50, backgroundImage: imageProvider),
+              child: CircleAvatar(radius: 60, backgroundImage: imageProvider),
             ),
             const SizedBox(height: 20),
             TextField(
               controller: nameController,
-              decoration: const InputDecoration(labelText: 'Name'),
+              decoration: const InputDecoration(
+                labelText: 'Name',
+                border: OutlineInputBorder(),
+              ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             TextField(
               controller: locationController,
-              decoration: const InputDecoration(labelText: 'Location'),
+              decoration: const InputDecoration(
+                labelText: 'Location',
+                border: OutlineInputBorder(),
+              ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             TextField(
               controller: emailController,
-              decoration: const InputDecoration(labelText: 'Email'),
+              decoration: const InputDecoration(
+                labelText: 'Email',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.emailAddress,
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             TextField(
               controller: mobileController,
-              decoration: const InputDecoration(labelText: 'Mobile'),
+              decoration: const InputDecoration(
+                labelText: 'Mobile',
+                border: OutlineInputBorder(),
+              ),
               keyboardType: TextInputType.phone,
             ),
             const SizedBox(height: 30),
-            ElevatedButton(onPressed: _saveProfile, child: const Text('Save')),
+            ElevatedButton(
+              onPressed: _saveProfile,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green[700],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 40,
+                  vertical: 14,
+                ),
+              ),
+              child: const Text('Save'),
+            ),
           ],
         ),
       ),

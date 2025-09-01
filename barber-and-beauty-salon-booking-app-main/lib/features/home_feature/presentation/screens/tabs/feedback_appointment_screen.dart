@@ -26,14 +26,12 @@ class _FeedbackAppointmentScreenState extends State<FeedbackAppointmentScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  // Feedback variables
   int _rating = 0;
   String? _feedbackType;
-  Map<String, dynamic>? _selectedService; // selected service object
+  Map<String, dynamic>? _selectedService;
   final TextEditingController _feedbackController = TextEditingController();
   bool _isSubmittingFeedback = false;
 
-  // Appointment variables
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
   Map<String, dynamic>? _appointmentService;
@@ -41,6 +39,9 @@ class _FeedbackAppointmentScreenState extends State<FeedbackAppointmentScreen>
   String? _selectedSalonId;
   final TextEditingController _notesController = TextEditingController();
   final TextEditingController _customerNameController = TextEditingController();
+  final TextEditingController _transactionIdController =
+      TextEditingController();
+  String? _selectedPaymentMethod;
   bool _isBookingAppointment = false;
 
   List<Map<String, dynamic>> _availableServices = [];
@@ -50,7 +51,6 @@ class _FeedbackAppointmentScreenState extends State<FeedbackAppointmentScreen>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
 
-    // Automatically fill user name if logged in
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       _customerNameController.text = user.displayName ?? '';
@@ -89,11 +89,11 @@ class _FeedbackAppointmentScreenState extends State<FeedbackAppointmentScreen>
     _feedbackController.dispose();
     _notesController.dispose();
     _customerNameController.dispose();
+    _transactionIdController.dispose();
     _tabController.dispose();
     super.dispose();
   }
 
-  // Feedback submission
   Future<void> _submitFeedback() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || _selectedService == null) return;
@@ -140,7 +140,6 @@ class _FeedbackAppointmentScreenState extends State<FeedbackAppointmentScreen>
     }
   }
 
-  // Appointment booking
   Future<void> _bookAppointment() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null ||
@@ -151,7 +150,8 @@ class _FeedbackAppointmentScreenState extends State<FeedbackAppointmentScreen>
     final customerName = _customerNameController.text.trim();
     if (customerName.isEmpty ||
         _selectedDate == null ||
-        _selectedTime == null) {
+        _selectedTime == null ||
+        _selectedPaymentMethod == null) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("Please fill all fields")));
@@ -171,7 +171,7 @@ class _FeedbackAppointmentScreenState extends State<FeedbackAppointmentScreen>
     try {
       await FirebaseFirestore.instance.collection('appointments').add({
         'salonId': _selectedSalonId,
-        'salonName': widget.shopName, // Salon name added
+        'salonName': widget.shopName,
         'serviceName': _appointmentService!['name'],
         'price': _appointmentService!['price'],
         'appointmentTime': appointmentDateTime,
@@ -181,17 +181,24 @@ class _FeedbackAppointmentScreenState extends State<FeedbackAppointmentScreen>
         'status': 'pending',
         'stylistId': _selectedStylistId,
         'timestamp': FieldValue.serverTimestamp(),
+        'paymentMethod': _selectedPaymentMethod ?? 'Cash',
+        'transactionId':
+            _selectedPaymentMethod != 'Cash'
+                ? _transactionIdController.text.trim()
+                : null,
       });
 
       if (!mounted) return;
       _notesController.clear();
       _customerNameController.clear();
+      _transactionIdController.clear();
       setState(() {
         _selectedDate = null;
         _selectedTime = null;
         _selectedStylistId = null;
         _appointmentService = null;
         _selectedSalonId = null;
+        _selectedPaymentMethod = null;
       });
 
       ScaffoldMessenger.of(
@@ -229,6 +236,7 @@ class _FeedbackAppointmentScreenState extends State<FeedbackAppointmentScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.lightGreen[100],
       appBar: AppBar(
         title: Text(widget.shopName),
         bottom: TabBar(
@@ -285,19 +293,22 @@ class _FeedbackAppointmentScreenState extends State<FeedbackAppointmentScreen>
             ),
           ),
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              physics: const AlwaysScrollableScrollPhysics(),
-              children: [
-                SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: _buildFeedbackTab(),
-                ),
-                SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: _buildAppointmentTab(),
-                ),
-              ],
+            child: Container(
+              color: Colors.lightGreen[100],
+              child: TabBarView(
+                controller: _tabController,
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: _buildFeedbackTab(),
+                  ),
+                  SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: _buildAppointmentTab(),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -317,10 +328,7 @@ class _FeedbackAppointmentScreenState extends State<FeedbackAppointmentScreen>
                 i < _rating ? Icons.star : Icons.star_border,
                 color: Colors.orange,
               ),
-              onPressed: () {
-                if (!mounted) return;
-                setState(() => _rating = i + 1);
-              },
+              onPressed: () => setState(() => _rating = i + 1),
             );
           }),
         ),
@@ -330,21 +338,17 @@ class _FeedbackAppointmentScreenState extends State<FeedbackAppointmentScreen>
           hint: const Text("Select Service"),
           isExpanded: true,
           items:
-              _availableServices
-                  .map(
-                    (service) => DropdownMenuItem<Map<String, dynamic>>(
-                      value: service,
-                      child: Text(service['name']),
-                    ),
-                  )
-                  .toList(),
-          onChanged: (val) {
-            if (!mounted) return;
-            setState(() {
-              _selectedService = val;
-              _feedbackType = val?['name'];
-            });
-          },
+              _availableServices.map((service) {
+                return DropdownMenuItem<Map<String, dynamic>>(
+                  value: service,
+                  child: Text(service['name']),
+                );
+              }).toList(),
+          onChanged:
+              (val) => setState(() {
+                _selectedService = val;
+                _feedbackType = val?['name'];
+              }),
         ),
         const SizedBox(height: 8),
         TextField(
@@ -388,18 +392,13 @@ class _FeedbackAppointmentScreenState extends State<FeedbackAppointmentScreen>
           hint: const Text("Select Service"),
           isExpanded: true,
           items:
-              _availableServices
-                  .map(
-                    (service) => DropdownMenuItem<Map<String, dynamic>>(
-                      value: service,
-                      child: Text("${service['name']} - ₹${service['price']}"),
-                    ),
-                  )
-                  .toList(),
-          onChanged: (val) {
-            if (!mounted) return;
-            setState(() => _appointmentService = val);
-          },
+              _availableServices.map((service) {
+                return DropdownMenuItem<Map<String, dynamic>>(
+                  value: service,
+                  child: Text("${service['name']} - ₹${service['price']}"),
+                );
+              }).toList(),
+          onChanged: (val) => setState(() => _appointmentService = val),
         ),
         const SizedBox(height: 8),
         StreamBuilder<QuerySnapshot>(
@@ -410,10 +409,8 @@ class _FeedbackAppointmentScreenState extends State<FeedbackAppointmentScreen>
                   .snapshots(),
           builder: (context, snapshot) {
             if (!snapshot.hasData) return const CircularProgressIndicator();
-
             final stylists = snapshot.data!.docs;
             if (stylists.isEmpty) return const Text("No stylists available.");
-
             return DropdownButton<String>(
               hint: const Text("Select Stylist"),
               value:
@@ -422,20 +419,13 @@ class _FeedbackAppointmentScreenState extends State<FeedbackAppointmentScreen>
                       : null,
               isExpanded: true,
               items:
-                  stylists
-                      .map(
-                        (doc) => DropdownMenuItem<String>(
-                          value: doc.id,
-                          child: Text(
-                            "${doc['name'] ?? 'Unknown'} (${doc['experience'] ?? ''} yrs)",
-                          ),
-                        ),
-                      )
-                      .toList(),
-              onChanged: (val) {
-                if (!mounted) return;
-                setState(() => _selectedStylistId = val);
-              },
+                  stylists.map((doc) {
+                    return DropdownMenuItem<String>(
+                      value: doc.id,
+                      child: Text("${doc['name']} (${doc['experience']} yrs)"),
+                    );
+                  }).toList(),
+              onChanged: (val) => setState(() => _selectedStylistId = val),
             );
           },
         ),
@@ -474,6 +464,28 @@ class _FeedbackAppointmentScreenState extends State<FeedbackAppointmentScreen>
             border: OutlineInputBorder(),
           ),
         ),
+        const SizedBox(height: 8),
+        DropdownButton<String>(
+          value: _selectedPaymentMethod,
+          hint: const Text("Select Payment Method"),
+          isExpanded: true,
+          items:
+              ['Cash', 'Card', 'UPI'].map((method) {
+                return DropdownMenuItem(value: method, child: Text(method));
+              }).toList(),
+          onChanged: (value) => setState(() => _selectedPaymentMethod = value),
+        ),
+        if (_selectedPaymentMethod != null &&
+            _selectedPaymentMethod != 'Cash') ...[
+          const SizedBox(height: 8),
+          TextField(
+            controller: _transactionIdController,
+            decoration: const InputDecoration(
+              labelText: "Transaction ID / UPI Ref",
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
         const SizedBox(height: 8),
         Center(
           child: ElevatedButton(

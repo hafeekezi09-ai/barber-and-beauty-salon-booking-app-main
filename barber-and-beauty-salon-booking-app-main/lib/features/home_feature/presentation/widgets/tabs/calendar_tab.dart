@@ -45,87 +45,100 @@ class _CalendarTabState extends State<CalendarTab> {
     final appointmentStream =
         FirebaseFirestore.instance
             .collection('appointments')
-            .where('userId', whereIn: [currentUserId])
+            .where('userId', isEqualTo: currentUserId)
             .orderBy('appointmentTime', descending: true)
             .snapshots();
 
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: appointmentStream,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
+    return Scaffold(
+      backgroundColor: Colors.lightGreen[100],
+      appBar: AppBar(
+        backgroundColor: Colors.green[700],
+        title: const Text("My Appointments"),
+        centerTitle: true,
+      ),
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: appointmentStream,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
 
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-        final docs = snapshot.data?.docs ?? [];
+          final docs = snapshot.data?.docs ?? [];
 
-        if (docs.isEmpty) {
-          return const Center(child: Text('No appointments found.'));
-        }
+          if (docs.isEmpty) {
+            return const Center(child: Text('No appointments found.'));
+          }
 
-        return ListView.builder(
-          itemCount: docs.length,
-          itemBuilder: (context, index) {
-            final data = docs[index].data();
-            final docId = docs[index].id;
+          return ListView.builder(
+            padding: const EdgeInsets.only(bottom: 80),
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              final data = docs[index].data();
+              final docId = docs[index].id;
 
-            final service = data['serviceName']?.toString() ?? 'Unknown';
-            final shop = data['shopName']?.toString() ?? 'Unknown';
-            final notes = data['notes']?.toString() ?? '';
-            final customer = data['customer']?.toString() ?? 'Unknown';
-            String status = data['status']?.toString() ?? 'pending';
+              final service = data['serviceName']?.toString() ?? 'Unknown';
+              final shop = data['salonName']?.toString() ?? 'Unknown';
+              final notes = data['notes']?.toString() ?? '';
+              final customer = data['customer']?.toString() ?? 'Unknown';
+              String status = data['status']?.toString() ?? 'pending';
 
-            final timestamp = data['appointmentTime'];
-            final formattedDate =
-                timestamp is Timestamp
-                    ? DateFormat(
-                      'dd MMM yyyy, hh:mm a',
-                    ).format(timestamp.toDate())
-                    : 'Unknown date';
+              final timestamp = data['appointmentTime'];
+              final formattedDate =
+                  timestamp is Timestamp
+                      ? DateFormat(
+                        'dd MMM yyyy, hh:mm a',
+                      ).format(timestamp.toDate())
+                      : 'Unknown date';
 
-            return Card(
-              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              child: ListTile(
-                title: Text('$service at $shop'),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Customer: $customer'),
-                    Text('Date & Time: $formattedDate'),
-                    if (notes.isNotEmpty) Text('Notes: $notes'),
-                  ],
+              return Card(
+                color: Colors.lightGreen[300],
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                child: ListTile(
+                  title: Text('$service at $shop'),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Customer: $customer'),
+                      Text('Date & Time: $formattedDate'),
+                      if (notes.isNotEmpty) Text('Notes: $notes'),
+                    ],
+                  ),
+                  trailing:
+                      currentUserIsManager
+                          ? DropdownButton<String>(
+                            value: status,
+                            items:
+                                ['pending', 'confirmed', 'rejected']
+                                    .map(
+                                      (s) => DropdownMenuItem(
+                                        value: s,
+                                        child: Text(
+                                          s[0].toUpperCase() + s.substring(1),
+                                          style: const TextStyle(fontSize: 13),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                            onChanged: (newStatus) {
+                              if (newStatus != null) {
+                                FirebaseFirestore.instance
+                                    .collection('appointments')
+                                    .doc(docId)
+                                    .update({'status': newStatus});
+                              }
+                            },
+                          )
+                          : Text('Status: $status'),
                 ),
-                trailing:
-                    currentUserIsManager
-                        ? DropdownButton<String>(
-                          value: status,
-                          items:
-                              ['pending', 'confirmed', 'rejected']
-                                  .map(
-                                    (s) => DropdownMenuItem(
-                                      value: s,
-                                      child: Text(s),
-                                    ),
-                                  )
-                                  .toList(),
-                          onChanged: (newStatus) {
-                            if (newStatus != null) {
-                              FirebaseFirestore.instance
-                                  .collection('appointments')
-                                  .doc(docId)
-                                  .update({'status': newStatus});
-                            }
-                          },
-                        )
-                        : Text('Status: $status'),
-              ),
-            );
-          },
-        );
-      },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }

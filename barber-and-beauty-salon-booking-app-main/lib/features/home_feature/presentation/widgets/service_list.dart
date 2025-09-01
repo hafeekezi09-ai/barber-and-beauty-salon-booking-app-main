@@ -104,7 +104,10 @@ class ServiceList extends StatelessWidget {
                       const SizedBox(height: 8),
                       Text(
                         name,
-                        style: TextStyle(fontFamily: FontFamily.aksharMedium),
+                        style: TextStyle(
+                          fontFamily: FontFamily.aksharMedium,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       AppLightText(location),
